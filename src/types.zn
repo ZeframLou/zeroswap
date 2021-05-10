@@ -1,0 +1,9 @@
+pub type Address = u160;
+pub type Balance = u120;
+pub type NativeBalance = u248;
+pub type K = u248;
+
+pub struct TwoAddressKey {
+    a: Address,
+    b: Address,
+}

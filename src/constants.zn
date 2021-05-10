@@ -1,0 +1,2 @@
+pub const MAX_BALANCE: u120 = 0xffffff_ffffffff_ffffffff_ffffffff;
+pub const MAX_NATIVE_BALANCE: u248 = 0xffffff_ffffffff_ffffffff_ffffffff_ffffffff_ffffffff_ffffffff_ffffffff;

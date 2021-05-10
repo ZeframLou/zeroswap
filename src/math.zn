@@ -1,0 +1,64 @@
+pub fn sqrt(x: u248) -> u248 {
+    if (x == 0) {
+        0 as u248
+    } else {
+        let mut xx: u248 = x;
+        let mut r: u248 = 1;
+        if (xx >= 0x100000000000000000000000000000000) {
+            xx >>= 128 as u248;
+            r <<= 64 as u248;
+        }
+        if (xx >= 0x10000000000000000) {
+            xx >>= 64 as u248;
+            r <<= 32 as u248;
+        }
+        if (xx >= 0x100000000) {
+            xx >>= 32 as u248;
+            r <<= 16 as u248;
+        }
+        if (xx >= 0x10000) {
+            xx >>= 16 as u248;
+            r <<= 8 as u248;
+        }
+        if (xx >= 0x100) {
+            xx >>= 8 as u248;
+            r <<= 4 as u248;
+        }
+        if (xx >= 0x10) {
+            xx >>= 4 as u248;
+            r <<= 2 as u248;
+        }
+        if (xx >= 0x8) {
+            r <<= 1 as u248;
+        }
+        r = (r + x / r) >> 1;
+        r = (r + x / r) >> 1;
+        r = (r + x / r) >> 1;
+        r = (r + x / r) >> 1;
+        r = (r + x / r) >> 1;
+        r = (r + x / r) >> 1;
+        r = (r + x / r) >> 1; // Seven iterations should be enough
+        let r1: u248 = x / r;
+        if (r < r1) {
+            r
+        } else {
+            r1
+        }
+    }
+}
+
+pub fn min(a: u248, b: u248) -> u248 {
+    if (a <= b) {
+        a
+    } else {
+        b
+    }
+}
+
+pub fn max(a: u248, b: u248) -> u248 {
+    if (a >= b) {
+        a
+    } else {
+        b
+    }
+}
