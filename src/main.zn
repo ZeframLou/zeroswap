@@ -92,8 +92,8 @@ contract ZeroSwapPair {
      */
     pub fn withdraw(mut self, to: Address) {
         require(
-            msg.recipient == self.address,
-            "ZeroSwap: TX_RECIPIENT_NOT_CONTRACT",
+            msg.amount == 0,
+            "ZeroSwap: TX_AMOUNT_NOT_ZERO",
         );
 
         let (currentUserDeposit0, _) = self.userDeposit0.get(msg.sender);
@@ -115,6 +115,11 @@ contract ZeroSwapPair {
      * @param to The address that the deposit will be credited to
      */
     pub fn mint(mut self, to: Address) -> NativeBalance {
+        require(
+            msg.amount == 0,
+            "ZeroSwap: TX_AMOUNT_NOT_ZERO",
+        );
+
         // compute and mint LP tokens
         let mut liquidity: NativeBalance = 0;
         let (currentUserDeposit0, _) = self.userDeposit0.get(msg.sender);
@@ -131,10 +136,6 @@ contract ZeroSwapPair {
         require(liquidity > 0, "ZeroSwap: INSUFFICIENT_LIQUIDITY_MINTED");
         self._mint(to, liquidity);
 
-        // update state
-        self._update();
-        self.kLast = (self.reserve0 * self.reserve1) as K;
-
         // deduct funds from deposit
         if (currentUserDeposit0 > 0) {
             self.userDeposit0.remove(msg.sender);
@@ -145,6 +146,10 @@ contract ZeroSwapPair {
             self.deposit1 -= currentUserDeposit1;
         }
 
+        // update state
+        self._update();
+        self.kLast = (self.reserve0 * self.reserve1) as K;
+
         // return LP tokens minted
         liquidity
     }
@@ -153,16 +158,20 @@ contract ZeroSwapPair {
      * @notice Burn LP tokens to get the underlying tokens
      * @param to The address that the funds will be credited to
      */
-    pub fn burn(mut self, to: Address) -> (NativeBalance, NativeBalance) {
+    pub fn burn(mut self, amount: NativeBalance, to: Address) -> (NativeBalance, NativeBalance) {
+        require(
+            msg.amount == 0,
+            "ZeroSwap: TX_AMOUNT_NOT_ZERO",
+        );
+
         let (balance0, balance1) = self._getBalances();
-        let (liquidity, _) = self.balanceOf.get(msg.sender);
 
         // transfer tokens and burn LP tokens
         self._mintFee();
-        let amount0: NativeBalance = liquidity * balance0 / self.totalSupply;
-        let amount1: NativeBalance = liquidity * balance1 / self.totalSupply;
+        let amount0: NativeBalance = amount * balance0 / self.totalSupply;
+        let amount1: NativeBalance = amount * balance1 / self.totalSupply;
         require(amount0 > 0 && amount1 > 0, "ZeroSwap: INSUFFICIENT_LIQUIDITY_BURNED");
-        self._burn(self.address, liquidity);
+        self._burn(msg.sender, amount);
         self.transfer(to, self.token0, amount0);
         self.transfer(to, self.token1, amount1);
 
@@ -181,6 +190,10 @@ contract ZeroSwapPair {
      * @param to The address that the funds will be credited to
      */
     pub fn swap(mut self, amount0Out: NativeBalance, amount1Out: NativeBalance, to: Address) {
+        require(
+            msg.amount == 0,
+            "ZeroSwap: TX_AMOUNT_NOT_ZERO",
+        );
         require(amount0Out > 0 || amount1Out > 0, "ZeroSwap: INSUFFICIENT_OUTPUT_AMOUNT");
         require(amount0Out < self.reserve0 as NativeBalance && amount1Out < self.reserve1 as NativeBalance, "ZeroSwap: INSUFFICIENT_LIQUIDITY");
         require(to != self.token0 && to != self.token1, "ZeroSwap: INVALID_TO");
@@ -193,19 +206,24 @@ contract ZeroSwapPair {
         }
         let (balance0, balance1) = self._getBalances();
 
-        let mut amount0In: NativeBalance = 0 as NativeBalance;
-        if (balance0 > self.reserve0 as NativeBalance - amount0Out) {
-            amount0In = balance0 - self.reserve0 as NativeBalance - amount0Out;
-        }
-        let mut amount1In: NativeBalance = 0 as NativeBalance;
-        if (balance1 > self.reserve1 as NativeBalance - amount1Out) {
-            amount1In = balance1 - self.reserve1 as NativeBalance - amount1Out;
-        }
-        require(amount0In > 0 || amount1In > 0, "ZeroSwap: INSUFFICIENT_INPUT_AMOUNT");
+        let (currentUserDeposit0, _) = self.userDeposit0.get(msg.sender);
+        let (currentUserDeposit1, _) = self.userDeposit1.get(msg.sender);
+        require(currentUserDeposit0 > 0 || currentUserDeposit1 > 0, "ZeroSwap: INSUFFICIENT_INPUT_AMOUNT");
 
-        let balance0Adjusted = balance0 * 1000 - amount0In * 3;
-        let balance1Adjusted = balance1 * 1000 - amount1In * 3;
-        require(balance0Adjusted * balance1Adjusted >= (self.reserve0 * self.reserve1 * 1E6) as NativeBalance, "UniswapV2: K");
+        // deduct funds from deposit
+        if (currentUserDeposit0 > 0) {
+            self.userDeposit0.remove(msg.sender);
+            self.deposit0 -= currentUserDeposit0;
+        }
+        if (currentUserDeposit1 > 0) {
+            self.userDeposit1.remove(msg.sender);
+            self.deposit1 -= currentUserDeposit1;
+        }
+
+        // check invariant
+        let balance0Adjusted = balance0 * 1000 - (currentUserDeposit0 * 3) as NativeBalance;
+        let balance1Adjusted = balance1 * 1000 - (currentUserDeposit1 * 3) as NativeBalance;
+        require(balance0Adjusted * balance1Adjusted >= (self.reserve0 * self.reserve1 * 1E6) as NativeBalance, "ZeroSwap: K");
 
         self._update();
     }
@@ -215,6 +233,10 @@ contract ZeroSwapPair {
      * @param to The address that will receive the tokens
      */
     pub fn skim(mut self, to: Address) {
+        require(
+            msg.amount == 0,
+            "ZeroSwap: TX_AMOUNT_NOT_ZERO",
+        );
         let (balance0, balance1) = self._getBalances();
         self.transfer(to, self.token0, balance0 - self.reserve0 as NativeBalance);
         self.transfer(to, self.token1, balance1 - self.reserve1 as NativeBalance);
@@ -224,6 +246,10 @@ contract ZeroSwapPair {
      * @notice Synchronizes state to the current token balances
      */
     pub fn sync(mut self) {
+        require(
+            msg.amount == 0,
+            "ZeroSwap: TX_AMOUNT_NOT_ZERO",
+        );
         self._update();
     }
 
@@ -249,7 +275,7 @@ contract ZeroSwapPair {
         self.reserve1 = balance1 as Balance;
     }
 
-    fn _getBalances(mut self) -> (NativeBalance, NativeBalance) {
+    fn _getBalances(self) -> (NativeBalance, NativeBalance) {
         let (balance0, _) = self.balances.get(self.token0);
         let (balance1, _) = self.balances.get(self.token1);
 
